@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, redirect, url_for, session, flash, make_response
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
@@ -15,7 +15,6 @@ db = SQLAlchemy(app)
 
 ADMIN_EMAIL = "Islombekmurodjonv64@gmail.com"
 
-# --- BAZA MODELLARI ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -45,7 +44,6 @@ with app.app_context():
         db.session.add(admin_user)
         db.session.commit()
 
-# --- PREMUM SHABLON (HTML/CSS/JS) ---
 LAYOUT_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="uz">
@@ -58,7 +56,6 @@ LAYOUT_TEMPLATE = """
     <style>
         :root { --primary-gold: #ffb703; --dark-navy: #023047; --light-bg: #f8f9fa; }
         body { background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .navbar-brand img { height: 45px; border-radius: 8px; }
         .hero-section { background: linear-gradient(135deg, #023047 0%, #219ebc 100%); color: white; padding: 40px 15px; border-radius: 0 0 25px 25px; }
         .premium-card { border: none; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.08); transition: all 0.3s ease; background: white; margin-bottom: 20px; }
         .premium-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.15); }
@@ -129,7 +126,6 @@ LAYOUT_TEMPLATE = """
 </html>
 """
 
-# --- ROUTELAR ---
 @app.route('/')
 def index():
     from_c = request.args.get('from_city', '')
@@ -151,7 +147,6 @@ def index():
             <h1 class="fw-bold">NCR TRANS — Aqlli Logistika Platformasi</h1>
             <p class="lead">Xalqaro va shaharlararo yuklarni tez va qulay toping</p>
             
-            <!-- Qidiruv paneli -->
             <form method="GET" action="/" class="row g-2 justify-content-center mt-3">
                 <div class="col-md-4 col-6">
                     <input type="text" name="from_city" class="form-control form-control-lg" placeholder="Qayerdan (Shahar)...">
@@ -167,7 +162,6 @@ def index():
     </div>
 
     <div class="container">
-        <!-- AI Sun'iy Intelekt Paneli -->
         <div class="ai-box shadow-sm mb-4">
             <div class="d-flex align-items-center mb-2">
                 <i class="fa-solid fa-robot fa-2x me-3"></i>
@@ -201,7 +195,6 @@ def index():
                 </div>
             </div>
 
-            <!-- Aloqa Modali (Telefon Nomer Ko'rsatuvchi) -->
             <div class="modal fade" id="contactModal{{ cargo.id }}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
@@ -214,9 +207,9 @@ def index():
                             <h4 class="fw-bold text-dark">{{ cargo.owner.name }}</h4>
                             <p class="text-muted mb-3">Kompaniya / Mas'ul shaxs</p>
                             <div class="p-3 bg-light rounded border mb-3">
-                                <h3 class="fw-bold text-success mb-0">{{ cargo.owner.phone if cargo.owner.phone else '+90 0850 284 52 45' }}</h3>
+                                <h3 class="fw-bold text-success mb-0">{{ cargo.owner.phone if cargo.owner.phone and cargo.owner.phone != '+' else '+90 0850 284 52 45' }}</h3>
                             </div>
-                            <a href="tel:{{ cargo.owner.phone }}" class="btn btn-success btn-lg w-100 fw-bold">
+                            <a href="tel:{{ cargo.owner.phone if cargo.owner.phone and cargo.owner.phone != '+' else '+90 0850 284 52 45' }}" class="btn btn-success btn-lg w-100 fw-bold">
                                 <i class="fa-solid fa-phone-flip me-2"></i> Qo'ng'iroq Qilish
                             </a>
                         </div>
@@ -245,7 +238,7 @@ def register():
         role = request.form.get('role', 'driver')
         
         if not phone or phone.strip() == '+':
-            phone = "+90 0850 284 52 45" # Standart rasmiy kontakt kiritiladi
+            phone = "+90 0850 284 52 45"
 
         user = User(name=name, email=email, phone=phone, password=generate_password_hash(raw_password), role=role, is_verified=(email == ADMIN_EMAIL or role == 'admin'))
         db.session.add(user)
@@ -378,7 +371,7 @@ def add_cargo():
                             </div>
                             <div class="col-6 mb-3">
                                 <label class="form-label">Qayerga</label>
-                                <input type="text" name="to_city" class="form-control" placeholder="Istanbull" required>
+                                <input type="text" name="to_city" class="form-control" placeholder="Istanbul" required>
                             </div>
                         </div>
                         <div class="row">
@@ -387,7 +380,7 @@ def add_cargo():
                                 <input type="number" step="0.1" name="weight" class="form-control" required>
                             </div>
                             <div class="col-6 mb-3">
-                                <label class="form-label">Kino / Ture Yo'nalishi</label>
+                                <label class="form-label">Transport Turi</label>
                                 <input type="text" name="cargo_type" class="form-control" placeholder="Tenta / Fura" required>
                             </div>
                         </div>
@@ -405,13 +398,12 @@ def add_cargo():
     """
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', content))
 
-# --- QR KODLI SHABLON VA PDF GENERATOR ---
 @app.route('/generate_pdf/<int:cargo_id>')
 def generate_pdf(cargo_id):
     cargo = Cargo.query.get_or_404(cargo_id)
+    owner_phone = cargo.owner.phone if cargo.owner.phone and cargo.owner.phone != '+' else '+90 0850 284 52 45'
     
-    # QR kod yaratish
-    qr_data = f"NCR TRANS VERIFIED CARGO\nID: {cargo.id}\nNomi: {cargo.title}\nYo'nalish: {cargo.from_city} -> {cargo.to_city}\nOwner Phone: {cargo.owner.phone}"
+    qr_data = f"NCR TRANS VERIFIED CARGO\\nID: {cargo.id}\\nNomi: {cargo.title}\\nYo'nalish: {cargo.from_city} -> {cargo.to_city}\\nOwner Phone: {owner_phone}"
     qr = qrcode.make(qr_data)
     buf = io.BytesIO()
     qr.save(buf, format='PNG')
@@ -444,7 +436,7 @@ def generate_pdf(cargo_id):
             <p><strong>Yo'nalish:</strong> {cargo.from_city} ➔ {cargo.to_city}</p>
             <p><strong>Og'irligi va Turi:</strong> {cargo.weight} Tonna ({cargo.cargo_type})</p>
             <p><strong>Kelishilgan Qiymati:</strong> {cargo.price}</p>
-            <p><strong>Egasining Telefon Raqami:</strong> {cargo.owner.phone}</p>
+            <p><strong>Egasining Telefon Raqami:</strong> {owner_phone}</p>
             <p><strong>Status:</strong> Tasdiqlangan / Faol</p>
         </div>
         <div class="footer">
