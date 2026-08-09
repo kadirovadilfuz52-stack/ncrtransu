@@ -1,10 +1,11 @@
-from flask import Flask, render_template_string, request, redirect, url_for, session, flash
+from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import io
 import qrcode
 from base64 import b64encode
+import openai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ncr_trans_premium_max_2026'
@@ -12,6 +13,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///ncr_trans_multilang.db'
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 db = SQLAlchemy(app)
+
+# Siz taqdim etgan OpenAI API kaliti to'g'ridan-to'g'ri ulandi
+OPENAI_API_KEY = "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"
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 ADMIN_EMAIL = "Islombekmurodjonv64@gmail.com"
 
@@ -82,6 +87,7 @@ LAYOUT_TEMPLATE = """
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item"><a class="nav-link text-white" href="/"><i class="fa-solid fa-truck"></i> Bosh sahifa</a></li>
+                    <li class="nav-item"><a class="nav-link text-warning" href="/ai_chat"><i class="fa-solid fa-robot"></i> ChatGPT AI Assistent</a></li>
                     {% if session.get('user_id') %}
                         {% if session.get('role') in ['owner', 'dispatcher', 'admin'] %}
                             <li class="nav-item"><a class="nav-link text-warning" href="/add_cargo"><i class="fa-solid fa-plus-circle"></i> Yuk Qo'shish</a></li>
@@ -112,7 +118,7 @@ LAYOUT_TEMPLATE = """
         {% endwith %}
     </div>
 
-    {% block content %}{% endblock %}
+    CONTENT_PLACEHOLDER
 
     <footer class="bg-dark text-white text-center py-4 mt-5">
         <div class="container">
@@ -125,6 +131,10 @@ LAYOUT_TEMPLATE = """
 </body>
 </html>
 """
+
+def render_page(content_html, **kwargs):
+    full_html = LAYOUT_TEMPLATE.replace('CONTENT_PLACEHOLDER', content_html)
+    return render_template_string(full_html, **kwargs)
 
 @app.route('/')
 def index():
@@ -140,8 +150,6 @@ def index():
     cargos = cargos_query.all()
 
     content = """
-    {% extends "layout" %}
-    {% block content %}
     <div class="hero-section text-center mb-4">
         <div class="container">
             <h1 class="fw-bold">NCR TRANS — Aqlli Logistika Platformasi</h1>
@@ -162,12 +170,15 @@ def index():
     </div>
 
     <div class="container">
-        <div class="ai-box shadow-sm mb-4">
-            <div class="d-flex align-items-center mb-2">
-                <i class="fa-solid fa-robot fa-2x me-3"></i>
-                <h4 class="mb-0 fw-bold">NCR AI Smart Assistent</h4>
+        <div class="ai-box shadow-sm mb-4 d-flex justify-content-between align-items-center">
+            <div>
+                <div class="d-flex align-items-center mb-2">
+                    <i class="fa-solid fa-robot fa-2x me-3"></i>
+                    <h4 class="mb-0 fw-bold">NCR AI Smart Assistent</h4>
+                </div>
+                <p class="mb-0">Logistika va yuk tashish bo'yicha ChatGPT yordamida istalgan savolingizga javob oling.</p>
             </div>
-            <p class="mb-0">AIning analitik algoritmi orqali yuklar narxi va masofa xavfi avtomatik monitoring qilinadi.</p>
+            <a href="/ai_chat" class="btn btn-light fw-bold text-dark px-4 py-2"><i class="fa-solid fa-comments"></i> Chatni Ochish</a>
         </div>
 
         <h3 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-boxes-packing text-warning"></i> Faol Yuklar E'lonlari</h3>
@@ -181,7 +192,7 @@ def index():
                     </div>
                     <h5 class="fw-bold text-dark mb-2">{{ cargo.title }}</h5>
                     <p class="text-muted mb-1"><i class="fa-solid fa-location-dot text-danger"></i> <strong>Yo'nalish:</strong> {{ cargo.from_city }} ➔ {{ cargo.to_city }}</p>
-                    <p class="text-muted mb-1"><i class="fa-solid fa-weight-hanging text-secondary"></i> <strong>O'g'irligi:</strong> {{ cargo.weight }} Tonna | {{ cargo.cargo_type }}</p>
+                    <p class="text-muted mb-1"><i class="fa-solid fa-weight-hanging text-secondary"></i> <strong>Og'irligi:</strong> {{ cargo.weight }} Tonna | {{ cargo.cargo_type }}</p>
                     
                     <hr>
                     <div class="d-flex justify-content-between align-items-center">
@@ -224,9 +235,50 @@ def index():
             {% endfor %}
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', content), cargos=cargos)
+    return render_page(content, cargos=cargos)
+
+@app.route('/ai_chat', methods=['GET', 'POST'])
+def ai_chat():
+    ai_response = ""
+    user_query = ""
+    if request.method == 'POST':
+        user_query = request.form.get('query', '')
+        if user_query:
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "Sen OOO 'NCR TRANS' xalqaro logistika kompaniyasining aqlli yordamchisan. Haydovchilar va yuk egalariga maslahat berasan."},
+                        {"role": "user", "content": user_query}
+                    ]
+                )
+                ai_response = response.choices[0].message.content
+            except Exception as e:
+                ai_response = f"Xatolik yuz berdi: {str(e)}"
+
+    content = f"""
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="premium-card p-4">
+                    <h3 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-robot"></i> ChatGPT Logistika Assisenti</h3>
+                    <p class="text-muted">Marshrutlar, yuk hujjatlari yoki tashish narxlari bo'yicha sun'iy intellektdan maslahat oling.</p>
+                    
+                    <form method="POST">
+                        <div class="mb-3">
+                            <textarea name="query" class="form-control" rows="3" placeholder="Masalan: Toshkentdan Istanbulgacha fura qancha vaqtda boradi?" required>{user_query}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-gold w-100 fw-bold"><i class="fa-solid fa-paper-plane"></i> Savol Berish</button>
+                    </form>
+                    
+                    {"<div class='mt-4 p-3 bg-light rounded border'><h5 class='fw-bold text-dark'>Javob:</h5><p class='mb-0 text-secondary'>" + ai_response + "</p></div>" if ai_response else ""}
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return render_page(content)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -247,8 +299,6 @@ def register():
         return redirect(url_for('login'))
 
     content = """
-    {% extends "layout" %}
-    {% block content %}
     <div class="container py-4">
         <div class="row justify-content-center">
             <div class="col-md-5">
@@ -285,9 +335,8 @@ def register():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', content))
+    return render_page(content)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -305,8 +354,6 @@ def login():
         flash("Email yoki parol xato!", "danger")
 
     content = """
-    {% extends "layout" %}
-    {% block content %}
     <div class="container py-4">
         <div class="row justify-content-center">
             <div class="col-md-5">
@@ -327,9 +374,8 @@ def login():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', content))
+    return render_page(content)
 
 @app.route('/add_cargo', methods=['GET', 'POST'])
 def add_cargo():
@@ -352,8 +398,6 @@ def add_cargo():
         return redirect(url_for('index'))
 
     content = """
-    {% extends "layout" %}
-    {% block content %}
     <div class="container py-4">
         <div class="row justify-content-center">
             <div class="col-md-6">
@@ -394,9 +438,8 @@ def add_cargo():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', content))
+    return render_page(content)
 
 @app.route('/generate_pdf/<int:cargo_id>')
 def generate_pdf(cargo_id):
