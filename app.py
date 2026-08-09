@@ -14,9 +14,9 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 db = SQLAlchemy(app)
 
-# Siz taqdim etgan OpenAI API kaliti to'g'ridan-to'g'ri ulandi
-OPENAI_API_KEY = "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"
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
+# API kalitni xavfsiz tarzda Render muhitidan o'qiymiz
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+client = openai.OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 ADMIN_EMAIL = "Islombekmurodjonv64@gmail.com"
 
@@ -245,17 +245,20 @@ def ai_chat():
     if request.method == 'POST':
         user_query = request.form.get('query', '')
         if user_query:
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "Sen OOO 'NCR TRANS' xalqaro logistika kompaniyasining aqlli yordamchisan. Haydovchilar va yuk egalariga maslahat berasan."},
-                        {"role": "user", "content": user_query}
-                    ]
-                )
-                ai_response = response.choices[0].message.content
-            except Exception as e:
-                ai_response = f"Xatolik yuz berdi: {str(e)}"
+            if client:
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Sen OOO 'NCR TRANS' xalqaro logistika kompaniyasining aqlli yordamchisan. Haydovchilar va yuk egalariga maslahat berasan."},
+                            {"role": "user", "content": user_query}
+                        ]
+                    )
+                    ai_response = response.choices[0].message.content
+                except Exception as e:
+                    ai_response = f"Xatolik yuz berdi: {str(e)}"
+            else:
+                ai_response = "OpenAI API kaliti Render muhitida sozlanmagan!"
 
     content = f"""
     <div class="container py-4">
