@@ -444,6 +444,74 @@ def add_cargo():
     """
     return render_page(content)
 
+@app.route('/admin')
+def admin_panel():
+    if session.get('email') != ADMIN_EMAIL:
+        flash("Bu sahfaqaga faqat admin kira oladi!", "danger")
+        return redirect(url_for('index'))
+    
+    users = User.query.all()
+    cargos = Cargo.query.all()
+
+    content = f"""
+    <div class="container py-4">
+        <h2 class="fw-bold mb-4 text-dark"><i class="fa-solid fa-user-shield text-danger"></i> Admin Boshqaruv Paneli</h2>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="premium-card p-3 bg-white">
+                    <h5 class="fw-bold text-muted">Jami Foydalanuvchilar</h5>
+                    <h3 class="fw-bold text-primary">{len(users)}</h3>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="premium-card p-3 bg-white">
+                    <h5 class="fw-bold text-muted">Jami Yuklar E'lonlari</h5>
+                    <h3 class="fw-bold text-success">{len(cargos)}</h3>
+                </div>
+            </div>
+        </div>
+
+        <h4 class="fw-bold mb-3">Foydalanuvchilar Ro'yxati</h4>
+        <div class="table-responsive bg-white p-3 rounded shadow-sm mb-4">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Ism</th>
+                        <th>Email</th>
+                        <th>Telefon</th>
+                        <th>Rol</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f"<tr><td>{u.id}</td><td>{u.name}</td><td>{u.email}</td><td>{u.phone}</td><td><span class='badge bg-secondary'>{u.role}</span></td></tr>" for u in users])}
+                </tbody>
+            </table>
+        </div>
+
+        <h4 class="fw-bold mb-3">Barcha Yuklar</h4>
+        <div class="table-responsive bg-white p-3 rounded shadow-sm">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nomi</th>
+                        <th>Yo'nalish</th>
+                        <th>Og'irlik</th>
+                        <th>Narx</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f"<tr><td>{c.id}</td><td>{c.title}</td><td>{c.from_city} ➔ {c.to_city}</td><td>{c.weight} T</td><td>{c.price}</td><td><span class='badge bg-success'>{c.status}</span></td></tr>" for c in cargos])}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    """
+    return render_page(content)
+
 @app.route('/generate_pdf/<int:cargo_id>')
 def generate_pdf(cargo_id):
     cargo = Cargo.query.get_or_404(cargo_id)
@@ -499,4 +567,5 @@ def logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
